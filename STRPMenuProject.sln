@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.34916.146
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestCarSpawner", "TestCarSpawner\TestCarSpawner.csproj", "{BDC94F8D-0C4C-4988-82C5-DB44052BD711}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "STRPMenu", "TestCarSpawner\STRPMenu.csproj", "{BDC94F8D-0C4C-4988-82C5-DB44052BD711}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
