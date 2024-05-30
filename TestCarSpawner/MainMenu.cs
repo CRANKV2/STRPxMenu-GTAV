@@ -6,6 +6,7 @@ using GTA;
 using GTA.Native;
 using GTA.UI;
 using NativeUI;
+using System.IO;
 
 namespace GTAModding
 {
@@ -16,43 +17,22 @@ namespace GTAModding
         private UIMenu startMenu;
         private UIMenu creditsMenu;
         private UIMenu settingsMenu;
-        private int maxVehicleCount = 5;
+        private int maxVehicleCount;
         private List<Vehicle> spawnedVehicles = new List<Vehicle>();
-        private bool spawnInsideVehicle = false;
+        private bool spawnInsideVehicle;
 
         private readonly string[] vehicleModels = { "adder", "blista", "comet2", "dominator" };
         private readonly string[] vehicleNames = { "Adder", "Blista", "Comet", "Dominator" };
-
-        private const string StartMenuTitle = "STRP Spawner";
-        private const string StartMenuSubtitle = "Welcome to STRP Spawner!";
-        private const string SpawnVehiclesItemText = "Spawn Add-On Vehicles";
-        private const string SpawnVehiclesItemDescription = "Spawn vehicles from the add-on list.";
-        private const string SettingsItemText = "Settings";
-        private const string SettingsItemDescription = "Customize STRP Spawner settings.";
-        private const string CreditsItemText = "Credits";
-        private const string CreditsItemDescription = "View credits and information.";
-        private const string SpawnInsideVehicleText = "Spawn Inside Vehicle";
-        private const string SpawnInsideVehicleDescription = "Toggle whether to spawn inside the vehicle or not.";
-
-        private const string MainMenuTitle = "STRP Spawner";
-        private const string MainMenuSubtitle = "Select a vehicle to spawn:";
-
-        private const string SettingsNotification = "Settings menu will be implemented later.";
-        private const string CreditsNotification = "STRP Spawner by STRP x DEVS";
-        private const string CreditsMenuTitle = "Credits";
-        private const string CreditsMenuSubtitle = "Developed by STRP x DEVS (@CRANKV2)";
-        private const string DonationWebsiteItemText = "Donation Website";
-
-        private const string SuccessNotificationColor = "#00FF00";
-        private const string ErrorNotificationColor = "#FF0000";
 
         private const Keys ToggleMenuKey = Keys.F5;
 
         public VehicleSpawner()
         {
+            ReadSettingsFromIniFile();
+
             menuPool = new MenuPool();
 
-            CreateSettingsMenu();  // Move this line to before CreateStartMenu()
+            CreateSettingsMenu();
             CreateStartMenu();
             CreateMainMenu();
             CreateCreditsMenu();
@@ -66,17 +46,42 @@ namespace GTAModding
             KeyDown += OnKeyDown;
         }
 
+        private void ReadSettingsFromIniFile()
+        {
+            string[] lines = File.ReadAllLines("./scripts/STRPMenu.ini");
+
+            foreach (string line in lines)
+            {
+                string[] parts = line.Split('=');
+
+                if (parts.Length == 2)
+                {
+                    string key = parts[0].Trim();
+                    string value = parts[1].Trim();
+
+                    if (key == "SpawnInsideVehicle")
+                    {
+                        bool.TryParse(value, out spawnInsideVehicle);
+                    }
+                    else if (key == "MaxVehicleCount")
+                    {
+                        int.TryParse(value, out maxVehicleCount);
+                    }
+                }
+            }
+        }
+
         private void CreateStartMenu()
         {
-            startMenu = new UIMenu(StartMenuTitle, StartMenuSubtitle);
+            startMenu = new UIMenu(StringConstants.StartMenuTitle, StringConstants.StartMenuSubtitle);
 
-            UIMenuItem spawnVehiclesItem = new UIMenuItem(SpawnVehiclesItemText, SpawnVehiclesItemDescription);
-            UIMenuItem settingsItem = new UIMenuItem(SettingsItemText, SettingsItemDescription);
-            UIMenuItem creditsItem = new UIMenuItem(CreditsItemText, CreditsItemDescription);
+            UIMenuItem spawnVehiclesItem = new UIMenuItem(StringConstants.SpawnVehiclesItemText, StringConstants.SpawnVehiclesItemDescription);
+            UIMenuItem settingsItem = new UIMenuItem(StringConstants.SettingsItemText, StringConstants.SettingsItemDescription);
+            UIMenuItem creditsItem = new UIMenuItem(StringConstants.CreditsItemText, StringConstants.CreditsItemDescription);
 
             startMenu.AddItem(spawnVehiclesItem);
-            startMenu.AddItem(settingsItem);  // Add settingsItem to startMenu before binding
-            startMenu.BindMenuToItem(settingsMenu, settingsItem);  // Bind after adding settingsItem to startMenu
+            startMenu.AddItem(settingsItem);
+            startMenu.BindMenuToItem(settingsMenu, settingsItem);
             startMenu.AddItem(creditsItem);
 
             startMenu.OnItemSelect += OnStartMenuItemSelect;
@@ -84,7 +89,7 @@ namespace GTAModding
 
         private void CreateMainMenu()
         {
-            mainMenu = new UIMenu(MainMenuTitle, MainMenuSubtitle);
+            mainMenu = new UIMenu(StringConstants.MainMenuTitle, StringConstants.MainMenuSubtitle);
 
             foreach (var vehicleName in vehicleNames)
             {
@@ -97,9 +102,9 @@ namespace GTAModding
 
         private void CreateSettingsMenu()
         {
-            settingsMenu = new UIMenu("Settings", "Customize STRP Spawner settings.");
+            settingsMenu = new UIMenu(StringConstants.SettingsItemText, StringConstants.SettingsItemDescription);
 
-            UIMenuCheckboxItem spawnInsideVehicleItem = new UIMenuCheckboxItem(SpawnInsideVehicleText, spawnInsideVehicle, SpawnInsideVehicleDescription);
+            UIMenuCheckboxItem spawnInsideVehicleItem = new UIMenuCheckboxItem(StringConstants.SpawnInsideVehicleText, spawnInsideVehicle, StringConstants.SpawnInsideVehicleDescription);
             settingsMenu.AddItem(spawnInsideVehicleItem);
 
             settingsMenu.OnCheckboxChange += (menu, item, checked_) =>
@@ -113,11 +118,19 @@ namespace GTAModding
 
         private void CreateCreditsMenu()
         {
-            creditsMenu = new UIMenu(CreditsMenuTitle, CreditsMenuSubtitle);
+            creditsMenu = new UIMenu(StringConstants.CreditsMenuTitle, StringConstants.CreditsMenuSubtitle);
 
-            UIMenuItem donationWebsiteItem = new UIMenuItem(DonationWebsiteItemText, "Visit our donation website to support us.");
+            UIMenuItem donationWebsiteItem = new UIMenuItem(StringConstants.DonationWebsiteItemText, "Visit our donation website to support us.");
+            UIMenuItem developerInfoItem = new UIMenuItem(StringConstants.DeveloperInfoItemText, StringConstants.DeveloperInfoItemDescription);
+            UIMenuItem versionInfoItem = new UIMenuItem(StringConstants.VersionInfoItemText, StringConstants.VersionInfoItemDescription);
+            UIMenuItem acknowledgementsItem = new UIMenuItem(StringConstants.AcknowledgementsItemText, StringConstants.AcknowledgementsItemDescription);
+            UIMenuItem websiteLinkItem = new UIMenuItem(StringConstants.WebsiteLinkItemText, StringConstants.WebsiteLinkItemDescription);
 
             creditsMenu.AddItem(donationWebsiteItem);
+            creditsMenu.AddItem(developerInfoItem);
+            creditsMenu.AddItem(versionInfoItem);
+            creditsMenu.AddItem(acknowledgementsItem);
+            creditsMenu.AddItem(websiteLinkItem);
 
             creditsMenu.OnItemSelect += OnCreditsMenuItemSelect;
         }
@@ -149,21 +162,24 @@ namespace GTAModding
 
         private void ToggleStartMenuVisibility()
         {
-            startMenu.Visible = !startMenu.Visible;
-
-            if (!startMenu.Visible)
+            if (!startMenu.Visible && !mainMenu.Visible && !creditsMenu.Visible && !settingsMenu.Visible)
             {
+                startMenu.Visible = true;
+            }
+            else if (startMenu.Visible)
+            {
+                startMenu.Visible = false;
                 GTA.UI.Hud.HideComponentThisFrame(HudComponent.WantedStars);
             }
         }
 
         private void OnStartMenuItemSelect(UIMenu sender, UIMenuItem selectedItem, int index)
         {
-            if (selectedItem.Text == SpawnVehiclesItemText)
+            if (selectedItem.Text == StringConstants.SpawnVehiclesItemText)
             {
                 ShowMainMenu();
             }
-            else if (selectedItem.Text == CreditsItemText)
+            else if (selectedItem.Text == StringConstants.CreditsItemText)
             {
                 ShowCreditsMenu();
             }
@@ -183,7 +199,7 @@ namespace GTAModding
 
         private void OnCreditsMenuItemSelect(UIMenu sender, UIMenuItem selectedItem, int index)
         {
-            if (selectedItem.Text == DonationWebsiteItemText)
+            if (selectedItem.Text == StringConstants.DonationWebsiteItemText)
             {
                 ShowNotification("Thank you for your support! Please visit: https://strp.cloud/strp/links.html", true);
             }
@@ -210,22 +226,22 @@ namespace GTAModding
                     if (spawnInsideVehicle)
                     {
                         Game.Player.Character.SetIntoVehicle(vehicle, VehicleSeat.Driver);
-                        ShowNotification($"Spawned <font color='{SuccessNotificationColor}'>{modelName}</font> and entered the vehicle.", true);
+                        ShowNotification($"Spawned <font color='{StringConstants.SuccessNotificationColor}'>{modelName}</font> and entered the vehicle.", true);
                     }
                     else
                     {
-                        ShowNotification($"Spawned <font color='{SuccessNotificationColor}'>{modelName}</font> in front of the player.", true);
+                        ShowNotification($"Spawned <font color='{StringConstants.SuccessNotificationColor}'>{modelName}</font> in front of the player.", true);
                     }
                 }
                 else
                 {
-                    ShowNotification($"<font color='{ErrorNotificationColor}'>Failed to spawn vehicle.</font>", false);
+                    ShowNotification($"<font color='{StringConstants.ErrorNotificationColor}'>Failed to spawn vehicle.</font>", false);
                 }
                 model.MarkAsNoLongerNeeded();
             }
             else
             {
-                ShowNotification($"<font color='{ErrorNotificationColor}'>Invalid model.</font>", false);
+                ShowNotification($"<font color='{StringConstants.ErrorNotificationColor}'>Invalid model.</font>", false);
             }
         }
 
