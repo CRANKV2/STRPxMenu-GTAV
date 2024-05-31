@@ -275,6 +275,13 @@ namespace STRPxDEVS
                     {
                         vehicleLicensePlate = newLicensePlate;
                         item.Description = newLicensePlate;
+
+                        // If the player is in a vehicle, update the license plate immediately
+                        if (Game.Player.Character.IsInVehicle())
+                        {
+                            Vehicle currentVehicle = Game.Player.Character.CurrentVehicle;
+                            currentVehicle.Mods.LicensePlate = vehicleLicensePlate;
+                        }
                     }
 
                     WriteSettingsToIniFile(); // Write the updated settings to the INI file
@@ -345,10 +352,12 @@ namespace STRPxDEVS
             if (selectedItem.Text == StringConstants.SpawnVehiclesItemText)
             {
                 mainMenu.Visible = true;
+                startMenu.Visible = false; // Hide the start menu when the main menu is shown
             }
             else if (selectedItem.Text == StringConstants.CreditsItemText)
             {
                 creditsMenu.Visible = true;
+                startMenu.Visible = false; // Hide the start menu when the credits menu is shown
             }
         }
 
@@ -358,6 +367,7 @@ namespace STRPxDEVS
             {
                 string modelName = addOnVehicleNamesToModels[selectedItem.Text];
                 SpawnVehicle(modelName);
+                mainMenu.Visible = false; // Hide the main menu when an add-on vehicle is selected to spawn
             }
         }
 
@@ -378,6 +388,7 @@ namespace STRPxDEVS
             if (selectedItem.Text == StringConstants.DonationWebsiteItemText)
             {
                 ShowNotification(StringConstants.DonationWebsiteNotificationMessage, true);
+                creditsMenu.Visible = false; // Hide the credits menu when a menu item is selected
             }
         }
 
@@ -385,6 +396,7 @@ namespace STRPxDEVS
         {
             string selectedVehicleModel = vehicleModels[Array.IndexOf(vehicleNames, selectedItem.Text)];
             SpawnVehicle(selectedVehicleModel);
+            mainMenu.Visible = false; // Hide the main menu when a vehicle is selected to spawn
         }
 
         private void SpawnVehicle(string modelName)
