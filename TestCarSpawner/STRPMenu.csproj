@@ -7,8 +7,8 @@
     <ProjectGuid>{BDC94F8D-0C4C-4988-82C5-DB44052BD711}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>STRPxDEVS</RootNamespace>
-    <AssemblyName>STRPMenu</AssemblyName>
+    <RootNamespace>STRPVAddonSpawner</RootNamespace>
+    <AssemblyName>STRPVAddonSpawner</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -31,8 +31,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="NativeUI">
-      <HintPath>..\..\..\..\..\..\Games\GTAV\scripts\NativeUI.dll</HintPath>
+    <Reference Include="LemonUI.SHVDN3, Version=2.1.2.0, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Games\GTAV\scripts\LemonUI.SHVDN3.dll</HintPath>
     </Reference>
     <Reference Include="ScriptHookVDotNet3">
       <HintPath>..\..\..\..\..\..\Games\GTAV\ScriptHookVDotNet3.dll</HintPath>
@@ -56,7 +57,7 @@
   <ItemGroup>
     <Compile Include="MainMenu.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="StringConstants.cs" />
+    <Content Include="TODO.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

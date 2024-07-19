@@ -1,0 +1,22 @@
+﻿
+//
+
+1. **Adding submenu creation and deletion for the user (to make their own vehicle categories, e.g., Ferrari, BMW, Audi, Lamborghini, and so on):**
+   -**Possible:**You can dynamically create submenus within LemonUI. This involves creating a new `NativeMenu` instance for each category and managing them in a collection, allowing users to add and remove categories at runtime.
+
+2. **Adding the ability to give that submenu their own names (Vehicle categories):**
+   -**Possible:**When creating submenus dynamically, you can prompt the user for the name of the category using a text input dialog or a similar method and then use that name as the title of the new `NativeMenu`.
+
+3. **Adding, inside the created submenu, an option to add vehicles from the Addon Vehicles list which the user has:**
+   -**Possible:**You can allow users to add vehicles to a category by selecting them from a list of available vehicles. This involves displaying a list of vehicles (from `AddOnCars.list`) and adding selected vehicles to the corresponding category submenu.
+
+4. **Adding an option inside the submenu to remove a vehicle from the list (if they accidentally added a wrong car to it):**
+   -**Possible:**Each vehicle entry in a submenu can have an option to remove it from the list. This can be implemented using a context menu or an additional option in the vehicle's menu item to remove the vehicle.
+
+5. **After adding vehicles to that submenu, when clicking on that vehicle, using the same spawning method like normal spawning (by using the settings preferences from the ini):**
+   -**Possible:**Once vehicles are added to a submenu, selecting them can invoke the same `SpawnVehicle` method you already have, using the settings defined in the `.ini` file.
+
+6. **Adding a submenu where spawned cars are stored so I can click on them to get options to delete the vehicle to make sure there is no mess on the map:**
+   -**Possible:**You can maintain a submenu that lists all currently spawned vehicles. Each item in this submenu can have options to interact with the vehicle, such as deleting it, teleporting to it, or marking it on the map. This involves tracking the spawned vehicles and updating the submenu accordingly.
+
+    //

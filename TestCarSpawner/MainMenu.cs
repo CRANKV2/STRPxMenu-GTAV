@@ -1,76 +1,95 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using GTA;
 using GTA.Math;
 using GTA.Native;
-using GTA.UI;
-using NativeUI;
+using LemonUI;
+using LemonUI.Elements;
+using LemonUI.Menus;
 using System.IO;
-using System.Linq;
 
-namespace STRPxDEVS
+namespace STRPVAddonSpawner
 {
-    public class STRPxMENU : Script
+    public class STRPVAddonSpawner : Script
     {
-        private MenuPool menuPool;
-        private UIMenu mainMenu;
-        private UIMenu startMenu;
-        private UIMenu creditsMenu;
-        private UIMenu settingsMenu;
-        private int maxVehicleCount;
-        private List<Vehicle> spawnedVehicles = new List<Vehicle>();
+        private ObjectPool menuPool;
+        private NativeMenu mainMenu;
+        private NativeMenu vehicleSubMenu;
+        private NativeMenu settingsMenu;
+        private NativeMenu spawnedVehiclesMenu;
+        private Dictionary<string, string> addOnVehicleNamesToModels = new Dictionary<string, string>();
         private bool spawnInsideVehicle;
         private bool preventVehicleDespawn;
-        private Dictionary<string, string> addOnVehicleNamesToModels = new Dictionary<string, string>();
-        private VehicleColor vehicleColor;
-        private SpawnLocation vehicleSpawnLocation;
-        private bool vehicleInvincibility;
-        private string vehicleLicensePlate;
+        private bool addBlipToSpawnedCar;
+        private System.Windows.Forms.Keys menuOpenKey;
+        private int maxVehicles = 1; // Default to 1 vehicle
+        private List<Vehicle> spawnedVehicles = new List<Vehicle>();
 
-        private readonly string[] vehicleModels = { "adder", "blista", "comet2", "dominator" };
-        private readonly string[] vehicleNames = { "Adder", "Blista", "Comet", "Dominator" };
-
-        private enum SpawnLocation
+        public STRPVAddonSpawner()
         {
-            Front,
-            Back,
-            Left,
-            Right
-        }
+            ClearLogFile();
+            Log("Constructor started");
 
-        public STRPxMENU()
-        {
             ReadSettingsFromIniFile();
 
-            menuPool = new MenuPool();
+            menuPool = new ObjectPool();
 
-            CreateSettingsMenu();
-            CreateStartMenu();
             CreateMainMenu();
-            CreateCreditsMenu();
+            CreateVehicleSubMenu();
+            CreateSettingsMenu();
+            CreateSpawnedVehiclesMenu();
+            Log("Menus created");
 
-            menuPool.Add(startMenu);
             menuPool.Add(mainMenu);
-            menuPool.Add(creditsMenu);
+            menuPool.Add(vehicleSubMenu);
             menuPool.Add(settingsMenu);
+            menuPool.Add(spawnedVehiclesMenu);
+
+            // Load the texture dictionary
+            string textureDictionary = "vcompanionmenu";
+            string textureName = "STRPVAddonSpawner"; // Ensure this matches the texture name inside the YTD file
+
+            // Apply the banner to all menus in the pool
+            menuPool.ForEach<NativeMenu>(x => x.Banner = new ScaledTexture(PointF.Empty, new SizeF(512, 128), textureDictionary, textureName));
 
             Tick += OnTick;
             KeyDown += OnKeyDown;
+
+            Log("Constructor finished");
         }
 
-        private Keys ToggleMenuKey;
+        private void ClearLogFile()
+        {
+            string logFilePath = "./scripts/STRPVAddon/AddonCars.log";
 
+            if (File.Exists(logFilePath))
+            {
+                File.Delete(logFilePath);
+            }
+        }
+
+        private void Log(string message)
+        {
+            string logFilePath = "./scripts/STRPVAddon/AddonCars.log";
+
+            // Append the log file if it exists
+            using (StreamWriter writer = new StreamWriter(logFilePath, true)) // 'true' to append
+            {
+                writer.WriteLine($"{DateTime.Now}: {message}");
+            }
+        }
 
         private void ReadSettingsFromIniFile()
         {
-            string[] lines = File.ReadAllLines("./scripts/STRPMenuFiles/STRPMenu.ini");
+            string[] lines = File.ReadAllLines("./scripts/STRPVAddon/AddonCars.ini");
 
             foreach (string line in lines)
             {
                 string[] parts = line.Split('=');
-
                 if (parts.Length == 2)
                 {
                     string key = parts[0].Trim();
@@ -80,115 +99,80 @@ namespace STRPxDEVS
                     {
                         bool.TryParse(value, out spawnInsideVehicle);
                     }
-                    else if (key == "MaxVehicleCount")
-                    {
-                        int.TryParse(value, out maxVehicleCount);
-                    }
-                    else if (key == "ToggleMenuKey")
-                    {
-                        if (Enum.TryParse(value, out Keys parsedKey))
-                        {
-                            ToggleMenuKey = parsedKey;
-                        }
-                        else
-                        {
-                            // If the key is not valid, default to F5
-                            ToggleMenuKey = Keys.F5;
-                        }
-                    }
                     else if (key == "PreventVehicleDespawn")
                     {
-                        if (bool.TryParse(value, out bool parsedValue))
+                        bool.TryParse(value, out preventVehicleDespawn);
+                    }
+                    else if (key == "AddBlipToSpawnedCar")
+                    {
+                        bool.TryParse(value, out addBlipToSpawnedCar);
+                    }
+                    else if (key == "MenuOpenKey")
+                    {
+                        if (Enum.TryParse(value, out System.Windows.Forms.Keys parsedKey))
                         {
-                            preventVehicleDespawn = parsedValue;
+                            menuOpenKey = parsedKey;
                         }
                         else
                         {
-                            // Default value if the setting is not valid
-                            preventVehicleDespawn = false;
+                            menuOpenKey = System.Windows.Forms.Keys.F5; // Default to F5 if parsing fails
                         }
                     }
-                    else if (key == "VehicleColor")
+                    else if (key == "MaxVehicles")
                     {
-                        if (Enum.TryParse(value, out VehicleColor parsedColor))
+                        if (value.ToLower() == "unlimited")
                         {
-                            vehicleColor = parsedColor;
+                            maxVehicles = -1; // Use -1 to represent unlimited
                         }
                         else
                         {
-                            // Default to black if the setting is not valid
-                            vehicleColor = VehicleColor.MetallicBlack;
+                            int.TryParse(value, out maxVehicles);
                         }
-                    }
-                    else if (key == "VehicleSpawnLocation")
-                    {
-                        if (Enum.TryParse(value, out SpawnLocation parsedLocation))
-                        {
-                            vehicleSpawnLocation = parsedLocation;
-                        }
-                        else
-                        {
-                            // Default to spawning in front of the player if the setting is not valid
-                            vehicleSpawnLocation = SpawnLocation.Front;
-                        }
-                    }
-                    else if (key == "VehicleInvincibility")
-                    {
-                        if (bool.TryParse(value, out bool parsedValue))
-                        {
-                            vehicleInvincibility = parsedValue;
-                        }
-                        else
-                        {
-                            // Default value if the setting is not valid
-                            vehicleInvincibility = false;
-                        }
-                    }
-                    else if (key == "VehicleLicensePlate")
-                    {
-                        vehicleLicensePlate = value;
                     }
                 }
             }
         }
 
-      
-
-        private void CreateStartMenu()
-        {
-            startMenu = new UIMenu(StringConstants.StartMenuTitle, StringConstants.StartMenuSubtitle);
-
-            UIMenuItem spawnVehiclesItem = new UIMenuItem(StringConstants.SpawnVehiclesItemText, StringConstants.SpawnVehiclesItemDescription);
-            UIMenuItem settingsItem = new UIMenuItem(StringConstants.SettingsItemText, StringConstants.SettingsItemDescription);
-            UIMenuItem creditsItem = new UIMenuItem(StringConstants.CreditsItemText, StringConstants.CreditsItemDescription);
-
-            startMenu.AddItem(spawnVehiclesItem);
-            startMenu.AddItem(settingsItem);
-            startMenu.BindMenuToItem(settingsMenu, settingsItem);
-            startMenu.AddItem(creditsItem);
-
-            startMenu.OnItemSelect += OnStartMenuItemSelect;
-        }
-
         private void CreateMainMenu()
         {
-            mainMenu = new UIMenu(StringConstants.MainMenuTitle, StringConstants.MainMenuSubtitle);
+            mainMenu = new NativeMenu("", "Select an option");
 
-            // Create submenu for in-game vehicles
-            UIMenu inGameVehiclesMenu = menuPool.AddSubMenu(mainMenu, StringConstants.InGameVehiclesMenuTitle);
-            foreach (var vehicleName in vehicleNames)
+            NativeItem spawnVehiclesItem = new NativeItem("Spawn Addon Vehicles");
+            NativeItem settingsItem = new NativeItem("Settings");
+            NativeItem spawnedVehiclesItem = new NativeItem("Spawned Vehicles");
+
+            mainMenu.Add(spawnVehiclesItem);
+            mainMenu.Add(settingsItem);
+            mainMenu.Add(spawnedVehiclesItem);
+
+            spawnVehiclesItem.Activated += (sender, args) =>
             {
-                UIMenuItem menuItem = new UIMenuItem(vehicleName);
-                inGameVehiclesMenu.AddItem(menuItem);
-            }
-            inGameVehiclesMenu.OnItemSelect += OnMainMenuItemSelect;
+                vehicleSubMenu.Visible = true;
+                mainMenu.Visible = false;
+            };
 
-            // Create submenu for add-on vehicles
-            UIMenu addOnVehiclesMenu = menuPool.AddSubMenu(mainMenu, StringConstants.AddOnVehiclesMenuTitle);
-            string[] addOnVehicleLines = File.ReadAllLines("./scripts/STRPMenuFiles/AddOnCars.ini");
+            settingsItem.Activated += (sender, args) =>
+            {
+                settingsMenu.Visible = true;
+                mainMenu.Visible = false;
+            };
+
+            spawnedVehiclesItem.Activated += (sender, args) =>
+            {
+                spawnedVehiclesMenu.Visible = true;
+                mainMenu.Visible = false;
+            };
+
+            Log("Main menu created");
+        }
+
+        private void CreateVehicleSubMenu()
+        {
+            vehicleSubMenu = new NativeMenu("", "Select a vehicle to spawn");
+
+            string[] addOnVehicleLines = File.ReadAllLines("./scripts/STRPVAddon/AddOnCars.txt");
             foreach (var line in addOnVehicleLines)
             {
-                // Ignore comment and section header lines
                 if (line.StartsWith("#") || line.StartsWith("["))
                 {
                     continue;
@@ -199,289 +183,232 @@ namespace STRPxDEVS
                 {
                     string modelName = parts[0].Trim();
                     string realName = parts[1].Trim();
-                    UIMenuItem menuItem = new UIMenuItem(realName);
-                    addOnVehiclesMenu.AddItem(menuItem);
-                    addOnVehicleNamesToModels[realName] = modelName; // Store the model name in the dictionary
+                    NativeItem menuItem = new NativeItem(realName);
+                    vehicleSubMenu.Add(menuItem);
+                    addOnVehicleNamesToModels[realName] = modelName;
+
+                    menuItem.Activated += (sender, args) => OnAddOnMenuItemSelect(sender, menuItem);
                 }
             }
-            addOnVehiclesMenu.OnItemSelect += OnAddOnMenuItemSelect;
-        }
 
+            Log("Vehicle sub-menu created with items: " + string.Join(", ", addOnVehicleNamesToModels.Keys));
+        }
 
         private void CreateSettingsMenu()
         {
-            settingsMenu = new UIMenu(StringConstants.SettingsItemText, StringConstants.SettingsItemDescription);
-
-            UIMenuCheckboxItem spawnInsideVehicleItem = new UIMenuCheckboxItem(StringConstants.SpawnInsideVehicleText, spawnInsideVehicle, StringConstants.SpawnInsideVehicleDescription);
-            UIMenuCheckboxItem preventVehicleDespawnItem = new UIMenuCheckboxItem(StringConstants.PreventVehicleDespawnText, preventVehicleDespawn, StringConstants.PreventVehicleDespawnDescription);
-            UIMenuListItem vehicleColorItem = new UIMenuListItem("Vehicle Color", Enum.GetNames(typeof(VehicleColor)).Cast<object>().ToList(), 0);
-            UIMenuListItem spawnLocationItem = new UIMenuListItem("Vehicle Spawn Location", Enum.GetNames(typeof(SpawnLocation)).Cast<object>().ToList(), 0);
-            UIMenuCheckboxItem vehicleInvincibilityItem = new UIMenuCheckboxItem("Vehicle Invincibility", vehicleInvincibility);
-            UIMenuItem vehicleLicensePlateItem = new UIMenuItem("Vehicle License Plate", vehicleLicensePlate);
-
-            settingsMenu.AddItem(spawnInsideVehicleItem);
-            settingsMenu.AddItem(preventVehicleDespawnItem);
-            settingsMenu.AddItem(vehicleColorItem);
-            settingsMenu.AddItem(spawnLocationItem);
-            settingsMenu.AddItem(vehicleInvincibilityItem);
-            settingsMenu.AddItem(vehicleLicensePlateItem);
-
-            settingsMenu.OnCheckboxChange += (menu, item, checked_) =>
+            try
             {
-                if (item == spawnInsideVehicleItem)
+                settingsMenu = new NativeMenu("", "Configure your preferences");
+
+                var spawnInsideVehicleItem = new NativeCheckboxItem("Spawn Inside Vehicle", spawnInsideVehicle)
                 {
-                    spawnInsideVehicle = checked_;
-                }
-                else if (item == preventVehicleDespawnItem)
+                    Description = "When checked, you will spawn inside the vehicle."
+                };
+                var preventVehicleDespawnItem = new NativeCheckboxItem("Prevent Vehicle Despawn", preventVehicleDespawn)
                 {
-                    preventVehicleDespawn = checked_;
-                }
-                else if (item == vehicleInvincibilityItem)
+                    Description = "Prevents the vehicle from despawning after you leave it no matter where you go."
+                };
+                var addBlipToSpawnedCarItem = new NativeCheckboxItem("Add Blip to Spawned Car", addBlipToSpawnedCar)
                 {
-                    vehicleInvincibility = checked_;
+                    Description = "Adds a map blip for the spawned vehicle with its Real name on the Pause Map."
+                };
+
+                var maxVehiclesItem = new NativeListItem<string>("Max Vehicles", "1", "2", "3", "4", "5", "Unlimited")
+                {
+                    Description = "Set the maximum number of vehicles you can spawn. (Removes oldest one if not Unlimited)"
+                };
+
+                settingsMenu.Add(spawnInsideVehicleItem);
+                settingsMenu.Add(preventVehicleDespawnItem);
+                settingsMenu.Add(addBlipToSpawnedCarItem);
+                settingsMenu.Add(maxVehiclesItem);
+
+                // Log the options being added
+                Log($"Adding Max Vehicles Options: {string.Join(", ", maxVehiclesItem.Items)}");
+
+                spawnInsideVehicleItem.CheckboxChanged += (sender, args) =>
+                {
+                    spawnInsideVehicle = spawnInsideVehicleItem.Checked;
+                    WriteSettingsToIniFile();
+                };
+
+                preventVehicleDespawnItem.CheckboxChanged += (sender, args) =>
+                {
+                    preventVehicleDespawn = preventVehicleDespawnItem.Checked;
+                    WriteSettingsToIniFile();
+                };
+
+                addBlipToSpawnedCarItem.CheckboxChanged += (sender, args) =>
+                {
+                    addBlipToSpawnedCar = addBlipToSpawnedCarItem.Checked;
+                    WriteSettingsToIniFile();
+                };
+
+                maxVehiclesItem.ItemChanged += (sender, args) =>
+                {
+                    string selectedValue = maxVehiclesItem.SelectedItem;
+                    maxVehicles = selectedValue == "Unlimited" ? -1 : int.Parse(selectedValue);
+                    WriteSettingsToIniFile();
+                };
+
+                // Set the initial value for the max vehicles item
+                string initialValue = maxVehicles == -1 ? "Unlimited" : maxVehicles.ToString();
+                if (!maxVehiclesItem.Items.Contains("1"))
+                {
+                    maxVehiclesItem.Items.Add("1"); // Ensure "1" is always available
                 }
 
-                WriteSettingsToIniFile(); // Write the updated settings to the INI file
-            };
+                if (maxVehiclesItem.Items.Contains(initialValue))
+                {
+                    maxVehiclesItem.SelectedItem = initialValue;
+                }
+                else
+                {
+                    maxVehiclesItem.SelectedItem = "1"; // Default to "1"
+                    Log($"Initial value '{initialValue}' not found. Defaulting to '1'.");
+                }
 
-            settingsMenu.OnListChange += (menu, item, index) =>
+                Log("Settings menu created successfully.");
+            }
+            catch (Exception ex)
             {
-                if (item == vehicleColorItem)
-                {
-                    if (Game.Player.Character.IsInVehicle())
-                    {
-                        Vehicle currentVehicle = Game.Player.Character.CurrentVehicle;
-                        VehicleColor selectedColor = (VehicleColor)Enum.Parse(typeof(VehicleColor), item.Items[index].ToString());
-                        currentVehicle.Mods.PrimaryColor = selectedColor;
-                        currentVehicle.Mods.SecondaryColor = selectedColor;
-                        vehicleColor = selectedColor; // Update the setting
-                    }
-                }
-                else if (item == spawnLocationItem)
-                {
-                    vehicleSpawnLocation = (SpawnLocation)Enum.Parse(typeof(SpawnLocation), item.Items[index].ToString());
-                }
-
-                WriteSettingsToIniFile(); // Write the updated settings to the INI file
-            };
-
-            settingsMenu.OnItemSelect += (menu, item, index) =>
-            {
-                if (item == vehicleLicensePlateItem)
-                {
-                    // Prompt the user to enter a new license plate
-                    string newLicensePlate = Game.GetUserInput(vehicleLicensePlate);
-                    if (!string.IsNullOrEmpty(newLicensePlate))
-                    {
-                        vehicleLicensePlate = newLicensePlate;
-                        item.Description = newLicensePlate;
-
-                        // If the player is in a vehicle, update the license plate immediately
-                        if (Game.Player.Character.IsInVehicle())
-                        {
-                            Vehicle currentVehicle = Game.Player.Character.CurrentVehicle;
-                            currentVehicle.Mods.LicensePlate = vehicleLicensePlate;
-                        }
-                    }
-
-                    WriteSettingsToIniFile(); // Write the updated settings to the INI file
-                }
-            };
+                Log($"Error in CreateSettingsMenu: {ex.Message}");
+                Log($"Stack Trace: {ex.StackTrace}");
+            }
         }
 
-        private void CreateCreditsMenu()
+        private void CreateSpawnedVehiclesMenu()
         {
-            creditsMenu = new UIMenu(StringConstants.CreditsMenuTitle, StringConstants.CreditsMenuSubtitle);
+            spawnedVehiclesMenu = new NativeMenu("", "Spawned Vehicles");
 
-            UIMenuItem donationWebsiteItem = new UIMenuItem(StringConstants.DonationWebsiteItemText, StringConstants.DonationWebsiteItemDescription);
-            UIMenuItem developerInfoItem = new UIMenuItem(StringConstants.DeveloperInfoItemText, StringConstants.DeveloperInfoItemDescription);
-            UIMenuItem versionInfoItem = new UIMenuItem(StringConstants.VersionInfoItemText, StringConstants.VersionInfoItemDescription);
-            UIMenuItem acknowledgementsItem = new UIMenuItem(StringConstants.AcknowledgementsItemText, StringConstants.AcknowledgementsItemDescription);
-            UIMenuItem websiteLinkItem = new UIMenuItem(StringConstants.WebsiteLinkItemText, StringConstants.WebsiteLinkItemDescription);
-
-            creditsMenu.AddItem(donationWebsiteItem);
-            creditsMenu.AddItem(developerInfoItem);
-            creditsMenu.AddItem(versionInfoItem);
-            creditsMenu.AddItem(acknowledgementsItem);
-            creditsMenu.AddItem(websiteLinkItem);
-
-            creditsMenu.OnItemSelect += OnCreditsMenuItemSelect;
+            Log("Spawned vehicles menu created");
         }
 
         private void OnTick(object sender, EventArgs e)
         {
-            menuPool.ProcessMenus();
-
-            DespawnExcessVehicles();
+            menuPool.Process();
         }
 
-        private void DespawnExcessVehicles()
+        private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
         {
-            while (spawnedVehicles.Count > maxVehicleCount)
+            if (e.KeyCode == menuOpenKey)
             {
-                Vehicle vehicleToDespawn = spawnedVehicles[0];
-                vehicleToDespawn.Delete();
+                mainMenu.Visible = !mainMenu.Visible;
+                Log($"Menu visibility toggled: {mainMenu.Visible}");
+            }
+        }
+
+        private void OnAddOnMenuItemSelect(object sender, NativeItem selectedItem)
+        {
+            string vehicleName = selectedItem.Title;
+            string modelName = addOnVehicleNamesToModels[vehicleName];
+
+            Model model = new Model(modelName);
+            if (!model.IsInCdImage || !model.IsVehicle)
+            {
+                Log($"Model {modelName} is not valid");
+                return;
+            }
+
+            Vehicle vehicle = World.CreateVehicle(model, Game.Player.Character.Position + Game.Player.Character.ForwardVector * 5);
+            if (vehicle == null)
+            {
+                Log($"Failed to create vehicle {modelName}");
+                return;
+            }
+
+            if (spawnInsideVehicle)
+            {
+                Game.Player.Character.SetIntoVehicle(vehicle, VehicleSeat.Driver);
+            }
+
+            if (addBlipToSpawnedCar)
+            {
+                Blip blip = vehicle.AddBlip();
+                blip.Name = vehicleName;
+            }
+
+            // Manage the maximum number of vehicles spawned
+            if (maxVehicles != -1 && spawnedVehicles.Count >= maxVehicles)
+            {
+                Vehicle oldestVehicle = spawnedVehicles.First();
+                oldestVehicle.Delete();
                 spawnedVehicles.RemoveAt(0);
             }
+
+            spawnedVehicles.Add(vehicle);
+            AddVehicleToSpawnedVehiclesMenu(vehicle, modelName);
         }
 
-
-        private void OnKeyDown(object sender, KeyEventArgs e)
+        private void AddVehicleToSpawnedVehiclesMenu(Vehicle vehicle, string modelName)
         {
-            if (e.KeyCode == ToggleMenuKey && !menuPool.IsAnyMenuOpen())
+            string vehicleName = addOnVehicleNamesToModels.FirstOrDefault(x => x.Value == modelName).Key;
+
+            if (vehicleName == null)
             {
-                startMenu.Visible = !startMenu.Visible;
+                Log($"Vehicle name not found for model: {modelName}");
+                return;
+            }
+
+            NativeMenu vehicleMenu = new NativeMenu(vehicleName, "Options for " + vehicleName);
+
+            NativeItem deleteItem = new NativeItem("Delete");
+            deleteItem.Activated += (sender, args) => DeleteVehicle(vehicle);
+
+            vehicleMenu.Add(deleteItem);
+
+            // Now correctly create a submenu item using the vehicleMenu
+            NativeSubmenuItem vehicleSubmenuItem = new NativeSubmenuItem(vehicleMenu);
+            spawnedVehiclesMenu.Add(vehicleSubmenuItem);
+
+            Log($"Added vehicle to spawned vehicles menu: {vehicleName}");
+        }
+
+        private void DeleteVehicle(Vehicle vehicle)
+        {
+            vehicle.Delete();
+            spawnedVehicles.Remove(vehicle);
+            RemoveVehicleFromSpawnedVehiclesMenu(vehicle);
+            Log($"Deleted vehicle: {vehicle.DisplayName}. Remaining vehicles: {spawnedVehicles.Count}");
+        }
+
+        private void RemoveVehicleFromSpawnedVehiclesMenu(Vehicle vehicle)
+        {
+            string vehicleName = vehicle.DisplayName; // Adjust as necessary for your logic
+            var vehicleItem = spawnedVehiclesMenu.Items.OfType<NativeSubmenuItem>()
+                .FirstOrDefault(item => item.Title == vehicleName);
+
+            if (vehicleItem != null)
+            {
+                spawnedVehiclesMenu.Remove(vehicleItem);
+                Log($"Removed vehicle from spawned vehicles menu: {vehicleName}");
             }
         }
 
-        private void ToggleStartMenuVisibility()
+        private void TeleportToVehicle(Vehicle vehicle)
         {
-            if (!startMenu.Visible && !mainMenu.Visible && !creditsMenu.Visible && !settingsMenu.Visible)
-            {
-                startMenu.Visible = true;
-            }
-            else if (startMenu.Visible)
-            {
-                startMenu.Visible = false;
-                GTA.UI.Hud.HideComponentThisFrame(HudComponent.WantedStars);
-            }
+            Game.Player.Character.Position = vehicle.Position;
+            Log($"Teleported to vehicle: {vehicle.DisplayName}");
         }
 
-        private void OnStartMenuItemSelect(UIMenu menu, UIMenuItem selectedItem, int index)
+        private void MarkVehicleOnMap(Vehicle vehicle)
         {
-            if (selectedItem.Text == StringConstants.SpawnVehiclesItemText)
-            {
-                mainMenu.Visible = true;
-                startMenu.Visible = false; // Hide the start menu when the main menu is shown
-            }
-            else if (selectedItem.Text == StringConstants.CreditsItemText)
-            {
-                creditsMenu.Visible = true;
-                startMenu.Visible = false; // Hide the start menu when the credits menu is shown
-            }
-        }
-
-        private void OnAddOnMenuItemSelect(UIMenu sender, UIMenuItem selectedItem, int index)
-        {
-            if (addOnVehicleNamesToModels.ContainsKey(selectedItem.Text))
-            {
-                string modelName = addOnVehicleNamesToModels[selectedItem.Text];
-                SpawnVehicle(modelName);
-                mainMenu.Visible = false; // Hide the main menu when an add-on vehicle is selected to spawn
-            }
-        }
-
-        private void ShowMainMenu()
-        {
-            mainMenu.Visible = true;
-            startMenu.Visible = false;
-        }
-
-        private void ShowCreditsMenu()
-        {
-            creditsMenu.Visible = true;
-            startMenu.Visible = false;
-        }
-
-        private void OnCreditsMenuItemSelect(UIMenu sender, UIMenuItem selectedItem, int index)
-        {
-            if (selectedItem.Text == StringConstants.DonationWebsiteItemText)
-            {
-                ShowNotification(StringConstants.DonationWebsiteNotificationMessage, true);
-                creditsMenu.Visible = false; // Hide the credits menu when a menu item is selected
-            }
-        }
-
-        private void OnMainMenuItemSelect(UIMenu menu, UIMenuItem selectedItem, int index)
-        {
-            string selectedVehicleModel = vehicleModels[Array.IndexOf(vehicleNames, selectedItem.Text)];
-            SpawnVehicle(selectedVehicleModel);
-            mainMenu.Visible = false; // Hide the main menu when a vehicle is selected to spawn
-        }
-
-        private void SpawnVehicle(string modelName)
-        {
-            Model model = new Model(modelName);
-            if (model.IsValid && model.IsInCdImage)
-            {
-                model.Request();
-                while (!model.IsLoaded) Script.Wait(100);
-
-                // Calculate spawn position based on the selected spawn location
-                Vector3 spawnPosition = Game.Player.Character.Position;
-                switch (vehicleSpawnLocation)
-                {
-                    case SpawnLocation.Front:
-                        spawnPosition += Game.Player.Character.ForwardVector * 5;
-                        break;
-                    case SpawnLocation.Back:
-                        spawnPosition -= Game.Player.Character.ForwardVector * 5;
-                        break;
-                    case SpawnLocation.Left:
-                        spawnPosition -= Game.Player.Character.RightVector * 5;
-                        break;
-                    case SpawnLocation.Right:
-                        spawnPosition += Game.Player.Character.RightVector * 5;
-                        break;
-                }
-
-                Vehicle vehicle = World.CreateVehicle(model, spawnPosition);
-                if (vehicle != null)
-                {
-                    vehicle.PlaceOnGround();
-                    vehicle.IsPersistent = preventVehicleDespawn; // Use the setting preventVehicleDespawn
-                    vehicle.IsInvincible = vehicleInvincibility; // Apply the invincibility setting
-                    vehicle.Mods.LicensePlate = vehicleLicensePlate; // Apply the license plate setting
-                    spawnedVehicles.Add(vehicle);
-
-                    if (spawnInsideVehicle)
-                    {
-                        Game.Player.Character.SetIntoVehicle(vehicle, VehicleSeat.Driver);
-                        ShowNotification($"Spawned <font color='{StringConstants.SuccessNotificationColor}'>{modelName}</font> and entered the vehicle.", true);
-                    }
-                    else
-                    {
-                        ShowNotification($"Spawned <font color='{StringConstants.SuccessNotificationColor}'>{modelName}</font> in front of the player.", true);
-                    }
-                }
-                else
-                {
-                    ShowNotification($"<font color='{StringConstants.ErrorNotificationColor}'>Failed to spawn vehicle.</font>", false);
-                }
-                model.MarkAsNoLongerNeeded();
-            }
-            else
-            {
-                ShowNotification($"<font color='{StringConstants.ErrorNotificationColor}'>Invalid model.</font>", false);
-            }
+            Blip blip = vehicle.AddBlip();
+            blip.Name = vehicle.DisplayName;
+            Log($"Marked vehicle on map: {vehicle.DisplayName}");
         }
 
         private void WriteSettingsToIniFile()
         {
-            List<string> lines = new List<string>
-    {
-        $"SpawnInsideVehicle = {spawnInsideVehicle}",
-        $"MaxVehicleCount = {maxVehicleCount}",
-        $"ToggleMenuKey = {ToggleMenuKey}",
-        $"PreventVehicleDespawn = {preventVehicleDespawn}",
-        $"VehicleColor = {vehicleColor}",
-        $"VehicleSpawnLocation = {vehicleSpawnLocation}",
-        $"VehicleInvincibility = {vehicleInvincibility}",
-        $"VehicleLicensePlate = {vehicleLicensePlate}"
-    };
+            string iniFilePath = "./scripts/STRPVAddon/AddonCars.ini";
 
-            File.WriteAllLines("./scripts/STRPMenuFiles/STRPMenu.ini", lines);
-        }
-
-        private void ShowNotification(string message, bool isSuccess)
-        {
-            if (isSuccess)
+            using (StreamWriter writer = new StreamWriter(iniFilePath, false)) // 'false' to overwrite
             {
-                GTA.UI.Notification.Show(message, true);
-            }
-            else
-            {
-                GTA.UI.Notification.Show(message, false);
+                writer.WriteLine($"SpawnInsideVehicle={spawnInsideVehicle}");
+                writer.WriteLine($"PreventVehicleDespawn={preventVehicleDespawn}");
+                writer.WriteLine($"AddBlipToSpawnedCar={addBlipToSpawnedCar}");
+                writer.WriteLine($"MenuOpenKey={menuOpenKey}");
+                writer.WriteLine($"MaxVehicles={(maxVehicles == -1 ? "Unlimited" : maxVehicles.ToString())}");
             }
         }
     }
